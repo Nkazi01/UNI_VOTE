@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+.gradle/
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.AndroidStudio*/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+.cache/
+.temp/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Node / Vite
+node_modules/
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Supabase (optional local)
+.env*
+supabase/.env.local
+supabase/.branches
+supabase/.temp
+
+
+# Android/Gradle caches (should NOT be in repo)
+.gradle/
+.AndroidStudio*/
+.android/
+
+# Misc
+*.local
+.cursor/
+

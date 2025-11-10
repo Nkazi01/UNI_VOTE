@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Direct Upload</title>
+  <style>
+    body { font-family: monospace; padding: 20px; max-width: 800px; margin: 0 auto; }
+    button { padding: 10px 20px; margin: 10px 0; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    .error { color: red; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <h1>Direct Supabase Storage Upload Test</h1>
+  
+  <input type="file" id="fileInput" accept="image/*">
+  <br>
+  <button onclick="testUpload()">Test Upload</button>
+  <button onclick="testFetch()">Test Fetch Only</button>
+  
+  <h2>Results:</h2>
+  <pre id="output"></pre>
+
+  <script>
+    const SUPABASE_URL = 'https://jkxnrbjasajvphewvamq.supabase.co'
+    const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreG5yYmphc2FqdnBoZXd2YW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNjUzNjksImV4cCI6MjA3Nzc0MTM2OX0.Q1sBMenJ_SXHLhIIKXDGGP_Wn4fwbNqcHiCuFIluTAc'
+    
+    const output = document.getElementById('output')
+    
+    function log(msg, type = 'info') {
+      const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black'
+      output.innerHTML += `<span style="color: ${color}">${msg}</span>\n`
+      console.log(msg)
+    }
+
+    async function testFetch() {
+      output.innerHTML = ''
+      log('Testing basic fetch to Supabase...')
+      
+      try {
+        log('Fetching: ' + SUPABASE_URL + '/rest/v1/')
+        const response = await fetch(SUPABASE_URL + '/rest/v1/', {
+          headers: {
+            'apikey': ANON_KEY
+          }
+        })
+        log('Response status: ' + response.status, 'success')
+        log('Response OK: ' + response.ok, 'success')
+        
+        if (response.ok) {
+          log('✅ Basic Supabase connection works!', 'success')
+        }
+      } catch (err) {
+        log('❌ Error: ' + err.message, 'error')
+      }
+    }
+
+    async function testUpload() {
+      output.innerHTML = ''
+      const fileInput = document.getElementById('fileInput')
+      const file = fileInput.files[0]
+      
+      if (!file) {
+        log('Please select a file first', 'error')
+        return
+      }
+      
+      log('File: ' + file.name)
+      log('Size: ' + (file.size / 1024).toFixed(2) + ' KB')
+      log('Type: ' + file.type)
+      log('')
+      
+      const fileName = 'test-' + Date.now() + '.' + file.name.split('.').pop()
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/poll-images/${fileName}`
+      
+      log('Upload URL: ' + uploadUrl)
+      log('Sending request...')
+      log('')
+      
+      try {
+        // Test with anon key (no auth required for insert if policy allows)
+        const startTime = Date.now()
+        
+        const response = await Promise.race([
+          fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${ANON_KEY}`,
+              'apikey': ANON_KEY,
+              'Content-Type': file.type,
+              'x-upsert': 'false'
+            },
+            body: file
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+          )
+        ])
+        
+        const duration = Date.now() - startTime
+        log(`Response received in ${duration}ms`, 'success')
+        log('Status: ' + response.status + ' ' + response.statusText)
+        
+        if (response.ok) {
+          const result = await response.json()
+          log('✅ Upload successful!', 'success')
+          log('Result: ' + JSON.stringify(result, null, 2), 'success')
+          
+          const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/poll-images/${fileName}`
+          log('')
+          log('Public URL: ' + publicUrl, 'success')
+          log('Open in new tab to test: ')
+          output.innerHTML += `<a href="${publicUrl}" target="_blank">${publicUrl}</a>\n`
+        } else {
+          const errorText = await response.text()
+          log('❌ Upload failed', 'error')
+          log('Error: ' + errorText, 'error')
+        }
+      } catch (err) {
+        log('❌ Exception: ' + err.message, 'error')
+        log('Stack: ' + err.stack, 'error')
+      }
+    }
+  </script>
+</body>
+</html>
+

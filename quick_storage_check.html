@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quick Storage Check</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family: monospace; padding: 20px; background: #000; color: #0f0;">
+  <h1>🔍 Quick Storage Check</h1>
+  <pre id="output"></pre>
+  
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://jkxnrbjasajvphewvamq.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreG5yYmphc2FqdnBoZXd2YW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNjUzNjksImV4cCI6MjA3Nzc0MTM2OX0.Q1sBMenJ_SXHLhIIKXDGGP_Wn4fwbNqcHiCuFIluTAc'
+    )
+    
+    const output = document.getElementById('output')
+    
+    async function check() {
+      output.textContent = 'Checking...\n\n'
+      
+      // 1. Check auth
+      const { data: session } = await supabase.auth.getSession()
+      output.textContent += `✅ Auth: ${session.session ? 'Logged in as ' + session.session.user.email : '❌ NOT LOGGED IN'}\n\n`
+      
+      // 2. List buckets
+      output.textContent += 'Checking buckets...\n'
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
+      
+      if (bucketsError) {
+        output.textContent += `❌ Error listing buckets: ${bucketsError.message}\n`
+        return
+      }
+      
+      output.textContent += `Found ${buckets.length} buckets:\n`
+      buckets.forEach(b => {
+        output.textContent += `  - ${b.id} (${b.public ? 'PUBLIC' : 'PRIVATE'})\n`
+      })
+      
+      const hasPollImages = buckets.find(b => b.id === 'poll-images')
+      
+      if (hasPollImages) {
+        output.textContent += `\n✅ poll-images bucket EXISTS!\n`
+        output.textContent += `   Public: ${hasPollImages.public ? 'YES' : 'NO'}\n\n`
+        
+        // Try to list files
+        output.textContent += 'Testing access...\n'
+        const { data: files, error: listError } = await supabase.storage
+          .from('poll-images')
+          .list('', { limit: 5 })
+        
+        if (listError) {
+          output.textContent += `❌ Cannot access bucket: ${listError.message}\n`
+          output.textContent += `   This might be a permissions issue.\n`
+        } else {
+          output.textContent += `✅ Can read bucket (${files.length} files)\n`
+        }
+        
+        // Try upload
+        if (session.session) {
+          output.textContent += '\nTrying test upload...\n'
+          const testFile = new File(['test'], 'test.txt', { type: 'text/plain' })
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('poll-images')
+            .upload('test-' + Date.now() + '.txt', testFile)
+          
+          if (uploadError) {
+            output.textContent += `❌ Upload FAILED: ${uploadError.message}\n`
+            output.textContent += `\nFull error:\n${JSON.stringify(uploadError, null, 2)}\n`
+          } else {
+            output.textContent += `✅ Upload WORKS!\n`
+          }
+        }
+        
+      } else {
+        output.textContent += `\n❌ poll-images bucket NOT FOUND!\n`
+        output.textContent += `\n🔧 FIX: Go to Supabase Dashboard → Storage → Create bucket named "poll-images"\n`
+      }
+    }
+    
+    check()
+  </script>
+</body>
+</html>
+

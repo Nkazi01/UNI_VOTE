@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Storage Upload Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; margin-top: 0; }
+    h2 { color: #666; font-size: 18px; }
+    .status { padding: 12px; border-radius: 6px; margin: 10px 0; }
+    .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    button:hover { background: #45a049; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    input[type="file"] { margin: 10px 0; }
+    pre {
+      background: #f4f4f4;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .log {
+      background: #000;
+      color: #0f0;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Supabase Storage Upload Test</h1>
+  
+  <div class="card">
+    <h2>1. Connection Status</h2>
+    <div id="connection-status" class="status info">Testing connection...</div>
+  </div>
+
+  <div class="card">
+    <h2>2. Storage Bucket Check</h2>
+    <button onclick="checkBucket()">Check 'poll-images' Bucket</button>
+    <div id="bucket-status"></div>
+  </div>
+
+  <div class="card">
+    <h2>3. Upload Test</h2>
+    <input type="file" id="file-input" accept="image/*">
+    <br>
+    <button onclick="testUpload()" id="upload-btn">Upload Image</button>
+    <div id="upload-status"></div>
+    <div id="image-preview"></div>
+  </div>
+
+  <div class="card">
+    <h2>4. Console Logs</h2>
+    <div id="logs" class="log"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://jkxnrbjasajvphewvamq.supabase.co'
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreG5yYmphc2FqdnBoZXd2YW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNjUzNjksImV4cCI6MjA3Nzc0MTM2OX0.Q1sBMenJ_SXHLhIIKXDGGP_Wn4fwbNqcHiCuFIluTAc'
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    
+    function log(message, type = 'info') {
+      const logsDiv = document.getElementById('logs')
+      const timestamp = new Date().toLocaleTimeString()
+      const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#0f0'
+      logsDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`
+      logsDiv.scrollTop = logsDiv.scrollHeight
+      console.log(message)
+    }
+
+    // Test connection on load
+    async function testConnection() {
+      const statusDiv = document.getElementById('connection-status')
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        
+        if (error) throw error
+        
+        statusDiv.className = 'status success'
+        statusDiv.textContent = '✅ Connected to Supabase'
+        log('Connection successful', 'success')
+        
+        // Check if user is authenticated
+        if (data.session) {
+          log(`Authenticated as: ${data.session.user.email}`, 'success')
+        } else {
+          log('⚠️ Not authenticated - some operations may fail', 'error')
+          statusDiv.textContent += ' (Not authenticated - login required for uploads)'
+          statusDiv.className = 'status error'
+        }
+      } catch (err) {
+        statusDiv.className = 'status error'
+        statusDiv.textContent = `❌ Connection failed: ${err.message}`
+        log(`Connection error: ${err.message}`, 'error')
+      }
+    }
+
+    // Check if bucket exists
+    async function checkBucket() {
+      const statusDiv = document.getElementById('bucket-status')
+      statusDiv.innerHTML = '<div class="status info">Checking bucket...</div>'
+      log('Checking poll-images bucket...')
+      
+      try {
+        const { data, error } = await supabase.storage.listBuckets()
+        
+        if (error) throw error
+        
+        log(`Found ${data.length} buckets`, 'success')
+        
+        const pollImagesBucket = data.find(b => b.id === 'poll-images')
+        
+        if (pollImagesBucket) {
+          statusDiv.innerHTML = `
+            <div class="status success">
+              ✅ Bucket 'poll-images' exists!
+              <pre>${JSON.stringify(pollImagesBucket, null, 2)}</pre>
+            </div>
+          `
+          log('poll-images bucket found', 'success')
+          
+          // Try to list files
+          const { data: files, error: listError } = await supabase.storage
+            .from('poll-images')
+            .list()
+          
+          if (listError) {
+            log(`List files error: ${listError.message}`, 'error')
+          } else {
+            log(`Bucket contains ${files.length} files`, 'success')
+          }
+        } else {
+          statusDiv.innerHTML = `
+            <div class="status error">
+              ❌ Bucket 'poll-images' NOT FOUND!<br><br>
+              <strong>Available buckets:</strong>
+              <pre>${JSON.stringify(data.map(b => b.id), null, 2)}</pre>
+              <br>
+              <strong>Action Required:</strong> Create the 'poll-images' bucket in Supabase Dashboard
+            </div>
+          `
+          log('poll-images bucket NOT FOUND', 'error')
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">❌ Error: ${err.message}</div>`
+        log(`Bucket check error: ${err.message}`, 'error')
+      }
+    }
+
+    // Test upload
+    async function testUpload() {
+      const fileInput = document.getElementById('file-input')
+      const statusDiv = document.getElementById('upload-status')
+      const previewDiv = document.getElementById('image-preview')
+      const uploadBtn = document.getElementById('upload-btn')
+      
+      const file = fileInput.files[0]
+      
+      if (!file) {
+        statusDiv.innerHTML = '<div class="status error">Please select a file first</div>'
+        return
+      }
+      
+      uploadBtn.disabled = true
+      statusDiv.innerHTML = '<div class="status info">Uploading...</div>'
+      log(`Uploading file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
+      
+      try {
+        // Check auth status first
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (!sessionData.session) {
+          throw new Error('You must be logged in to upload images. Please login to your app first.')
+        }
+        
+        // Generate unique filename
+        const fileExt = file.name.split('.').pop()
+        const fileName = `test-${Date.now()}.${fileExt}`
+        
+        log(`Generated filename: ${fileName}`)
+        
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('poll-images')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          })
+        
+        if (error) throw error
+        
+        log('Upload successful!', 'success')
+        log(`Upload data: ${JSON.stringify(data, null, 2)}`, 'success')
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('poll-images')
+          .getPublicUrl(fileName)
+        
+        const publicUrl = urlData.publicUrl
+        log(`Public URL: ${publicUrl}`, 'success')
+        
+        statusDiv.innerHTML = `
+          <div class="status success">
+            ✅ Upload successful!<br>
+            <strong>Public URL:</strong><br>
+            <a href="${publicUrl}" target="_blank">${publicUrl}</a>
+          </div>
+        `
+        
+        previewDiv.innerHTML = `
+          <h3>Preview:</h3>
+          <img src="${publicUrl}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        `
+        
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">❌ Upload failed: ${err.message}</div>`
+        log(`Upload error: ${err.message}`, 'error')
+        
+        // Detailed error logging
+        if (err.message.includes('403') || err.message.includes('Forbidden')) {
+          statusDiv.innerHTML += `
+            <div class="status error" style="margin-top: 10px;">
+              <strong>Likely causes:</strong>
+              <ul>
+                <li>Not authenticated (login required)</li>
+                <li>Missing storage policies in Supabase</li>
+                <li>RLS policies not configured correctly</li>
+              </ul>
+            </div>
+          `
+        }
+      } finally {
+        uploadBtn.disabled = false
+      }
+    }
+
+    // Run connection test on page load
+    testConnection()
+    log('Page loaded - ready for testing')
+  </script>
+</body>
+</html>
+
