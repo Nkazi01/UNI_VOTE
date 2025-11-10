@@ -58,10 +58,15 @@ Thumbs.db
 .idea/
 
 # Supabase (optional local)
-.env*
+.env
+.env.local
+.env*.local
 supabase/.env.local
 supabase/.branches
 supabase/.temp
+
+# Vercel
+.vercel
 
 
 # Android/Gradle caches (should NOT be in repo)
